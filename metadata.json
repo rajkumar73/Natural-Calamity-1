@@ -1,0 +1,8 @@
+{
+  "name": "Remix: आपत्ती व्यवस्थापन संपर्क (Taluka Disaster Contacts)",
+  "description": "तालुका आपत्ती व्यवस्थापनासाठी सर्व तातडीचे फोन नंबर, रुग्णवाहिका, प्रशासकीय आणि सुरक्षा अधिकार्‍यांचे संपर्क व्यवस्थापित करणारे ॲप (ऑफलाईन कार्यक्षमतेसह).",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
