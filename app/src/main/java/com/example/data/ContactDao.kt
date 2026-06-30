@@ -22,4 +22,13 @@ interface ContactDao {
 
     @Query("DELETE FROM emergency_contacts")
     suspend fun deleteAllContacts()
+
+    @Query("DELETE FROM emergency_contacts WHERE isLocal = 0")
+    suspend fun deleteNonLocalContacts()
+
+    @Query("SELECT * FROM emergency_contacts WHERE isLocal = 0")
+    suspend fun getNonLocalContactsSync(): List<EmergencyContact>
+
+    @Query("SELECT * FROM emergency_contacts WHERE isLocal = 1")
+    suspend fun getLocalContactsSync(): List<EmergencyContact>
 }

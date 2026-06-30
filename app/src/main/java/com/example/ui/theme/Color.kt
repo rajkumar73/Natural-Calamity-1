@@ -1,6 +1,7 @@
 package com.example.ui.theme
 
 import androidx.compose.ui.graphics.Color
+import androidx.compose.runtime.mutableStateOf
 
 val Purple80 = Color(0xFFD0BCFF)
 val PurpleGrey80 = Color(0xFFCCC2DC)
@@ -22,7 +23,11 @@ val DarkSurface = Color(0xFF1F2937)
 val AmberAccent = Color(0xFFFBBF24)
 
 // Geometric Balance Specific Palette Colors - Electric high-contrast vibrant palette
-val GBPrimary = Color(0xFF2563EB)         // Highly vibrant Electric Royal Blue (Dynamic, active, eye-catching)
+val GBPrimaryState = mutableStateOf(Color(0xFF2563EB))
+
+val GBPrimary: Color
+    get() = GBPrimaryState.value
+
 val GBBg = Color(0xFFF1F5F9)              // Clean, vivid Slate light grey screen background
 val GBText = Color(0xFF0F172A)            // Obsidian Slate Deep for maximum readability
 val GBBorder = Color(0xFFCBD5E1)          // High-visibility silver boarders

@@ -27,7 +27,7 @@ class ContactRepository(private val contactDao: ContactDao) {
                     villageOrAreaMr = "तालुका (सर्व)",
                     villageOrAreaEn = "Taluka (All)",
                     isDefault = true,
-                    notes = "कोणत्याही नैसर्गिक किंवा मानवनिर्मित आपत्तीमध्ये तात्काळ संपर्क साधा (२४/७ कार्यरत)."
+                    notes = "कोणत्याही नैसर्गिक किंवा मानवनिर्मित आपत्तीमध्ये तात्काळ संपर्क साधा (24/7 कार्यरत)."
                 ),
                 EmergencyContact(
                     nameMr = "मा. तहसीलदार तथा तालुका दंडाधिकारी",
@@ -108,7 +108,7 @@ class ContactRepository(private val contactDao: ContactDao) {
                     notes = "नदीपातळी मोजणे आणि धरणांमधून सोडण्यात येणाऱ्या पाण्याचा विसर्ग नियंत्रित करणे."
                 ),
                 EmergencyContact(
-                    nameMr = "१०८ रुग्णवाहिका नियंत्रण समन्वयक",
+                    nameMr = "108 रुग्णवाहिका नियंत्रण समन्वयक",
                     nameEn = "108 Ambulance Control Coordinator",
                     phone = "108",
                     phoneAlt = "108",
@@ -574,8 +574,8 @@ class ContactRepository(private val contactDao: ContactDao) {
                             }
                         }
                         "108" -> {
-                            if (nameMr == "१०८ शासकीय मोफत रुग्णवाहिका") {
-                                nameMr = "१०८ रुग्णवाहिका नियंत्रण समन्वयक"
+                            if (nameMr == "108 शासकीय मोफत रुग्णवाहिका" || nameMr == "१०८ शासकीय मोफत रुग्णवाहिका") {
+                                nameMr = "108 रुग्णवाहिका नियंत्रण समन्वयक"
                                 nameEn = "108 Ambulance Control Coordinator"
                                 designationMr = "शासकीय मोफत रुग्णवाहिका मदत सेवा"
                                 designationEn = "Govt Free Ambulance Service Desk"
@@ -617,7 +617,102 @@ class ContactRepository(private val contactDao: ContactDao) {
     }
 
     suspend fun importContactsFromSheet(contacts: List<EmergencyContact>) {
-        contactDao.deleteAllContacts()
-        contactDao.insertContacts(contacts)
+        // 1. Database Self-Healing: Scan and delete existing duplicates in local database
+        val rawNonLocalList = contactDao.getNonLocalContactsSync()
+        val seenKeys = mutableSetOf<String>()
+        rawNonLocalList.forEach { contact ->
+            val key = "${contact.nameMr.trim()}_${contact.phone.trim()}_${contact.category.trim()}_${contact.villageOrAreaMr.trim()}"
+            if (seenKeys.contains(key)) {
+                contactDao.deleteContact(contact)
+            } else {
+                seenKeys.add(key)
+            }
+        }
+
+        val rawLocalList = contactDao.getLocalContactsSync()
+        rawLocalList.forEach { contact ->
+            val key = "${contact.nameMr.trim()}_${contact.phone.trim()}_${contact.category.trim()}_${contact.villageOrAreaMr.trim()}"
+            // If we have already seen this key in non-local or another local, delete the duplicate local
+            if (seenKeys.contains(key)) {
+                contactDao.deleteContact(contact)
+            } else {
+                seenKeys.add(key)
+            }
+        }
+
+        // 2. Fetch the fresh, now-clean lists to perform the main sync
+        val existingNonLocalList = contactDao.getNonLocalContactsSync()
+        val existingNonLocalMap = existingNonLocalList.associateBy { 
+            "${it.nameMr.trim()}_${it.phone.trim()}_${it.category.trim()}_${it.villageOrAreaMr.trim()}" 
+        }.toMutableMap()
+
+        val existingLocalList = contactDao.getLocalContactsSync()
+        val existingLocalMap = existingLocalList.associateBy { 
+            "${it.nameMr.trim()}_${it.phone.trim()}_${it.category.trim()}_${it.villageOrAreaMr.trim()}" 
+        }.toMutableMap()
+
+        val toInsert = mutableListOf<EmergencyContact>()
+        
+        contacts.forEach { incoming ->
+            val key = "${incoming.nameMr.trim()}_${incoming.phone.trim()}_${incoming.category.trim()}_${incoming.villageOrAreaMr.trim()}"
+            
+            if (existingNonLocalMap.containsKey(key)) {
+                val existing = existingNonLocalMap[key]!!
+                // Compare and update if changed
+                val hasChanged = existing.nameEn != incoming.nameEn ||
+                        existing.phoneAlt != incoming.phoneAlt ||
+                        existing.designationMr != incoming.designationMr ||
+                        existing.designationEn != incoming.designationEn ||
+                        existing.villageOrAreaMr != incoming.villageOrAreaMr ||
+                        existing.villageOrAreaEn != incoming.villageOrAreaEn ||
+                        existing.isDefault != incoming.isDefault ||
+                        existing.notes != incoming.notes
+
+                if (hasChanged) {
+                    val updated = existing.copy(
+                        nameEn = incoming.nameEn,
+                        phoneAlt = incoming.phoneAlt,
+                        designationMr = incoming.designationMr,
+                        designationEn = incoming.designationEn,
+                        villageOrAreaMr = incoming.villageOrAreaMr,
+                        villageOrAreaEn = incoming.villageOrAreaEn,
+                        isDefault = incoming.isDefault,
+                        notes = incoming.notes,
+                        isLocal = false
+                    )
+                    contactDao.updateContact(updated)
+                }
+                existingNonLocalMap.remove(key)
+            } else if (existingLocalMap.containsKey(key)) {
+                // The local contact is now in the sheet (synced!)
+                val existingLocal = existingLocalMap[key]!!
+                // Convert the local contact to non-local (isLocal = false) so it doesn't duplicate
+                val updated = existingLocal.copy(
+                    nameEn = incoming.nameEn,
+                    phoneAlt = incoming.phoneAlt,
+                    designationMr = incoming.designationMr,
+                    designationEn = incoming.designationEn,
+                    villageOrAreaMr = incoming.villageOrAreaMr,
+                    villageOrAreaEn = incoming.villageOrAreaEn,
+                    isDefault = incoming.isDefault,
+                    notes = incoming.notes,
+                    isLocal = false
+                )
+                contactDao.updateContact(updated)
+            } else {
+                // New contact from sheet
+                toInsert.add(incoming.copy(isLocal = false))
+            }
+        }
+
+        // Delete records no longer on Google Sheets
+        existingNonLocalMap.values.forEach { removedContact ->
+            contactDao.deleteContact(removedContact)
+        }
+
+        // Insert only new contacts
+        if (toInsert.isNotEmpty()) {
+            contactDao.insertContacts(toInsert)
+        }
     }
 }

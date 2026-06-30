@@ -16,5 +16,9 @@ data class EmergencyContact(
     val villageOrAreaMr: String,
     val villageOrAreaEn: String,
     val isDefault: Boolean = false,
-    val notes: String = ""
+    val notes: String = "",
+    val isPending: Boolean = false,
+    val isLocal: Boolean = false,
+    val isPendingDelete: Boolean = false,
+    val updateForContactId: Int? = null
 )
